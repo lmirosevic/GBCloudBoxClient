@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		8A663FEB16F9A57800FDD892 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A663FEA16F9A57800FDD892 /* Cocoa.framework */; };
-		8A663FF516F9A57800FDD892 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 8A663FF316F9A57800FDD892 /* InfoPlist.strings */; };
 		8A663FF916F9A57800FDD892 /* GBCloudBox.m in Sources */ = {isa = PBXBuildFile; fileRef = 8A663FF816F9A57800FDD892 /* GBCloudBox.m */; };
 /* End PBXBuildFile section */
 
@@ -18,8 +17,6 @@
 		8A663FED16F9A57800FDD892 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
 		8A663FEE16F9A57800FDD892 /* CoreData.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreData.framework; path = System/Library/Frameworks/CoreData.framework; sourceTree = SDKROOT; };
 		8A663FEF16F9A57800FDD892 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
-		8A663FF216F9A57800FDD892 /* GBCloudBox-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GBCloudBox-Info.plist"; sourceTree = "<group>"; };
-		8A663FF416F9A57800FDD892 /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		8A663FF616F9A57800FDD892 /* GBCloudBox-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "GBCloudBox-Prefix.pch"; sourceTree = "<group>"; };
 		8A663FF716F9A57800FDD892 /* GBCloudBox.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GBCloudBox.h; sourceTree = "<group>"; };
 		8A663FF816F9A57800FDD892 /* GBCloudBox.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GBCloudBox.m; sourceTree = "<group>"; };
@@ -86,8 +83,6 @@
 		8A663FF116F9A57800FDD892 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
-				8A663FF216F9A57800FDD892 /* GBCloudBox-Info.plist */,
-				8A663FF316F9A57800FDD892 /* InfoPlist.strings */,
 				8A663FF616F9A57800FDD892 /* GBCloudBox-Prefix.pch */,
 			);
 			name = "Supporting Files";
@@ -155,7 +150,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				8A663FF516F9A57800FDD892 /* InfoPlist.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -171,17 +165,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXVariantGroup section */
-		8A663FF316F9A57800FDD892 /* InfoPlist.strings */ = {
-			isa = PBXVariantGroup;
-			children = (
-				8A663FF416F9A57800FDD892 /* en */,
-			);
-			name = InfoPlist.strings;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		8A663FFA16F9A57800FDD892 /* Debug */ = {
@@ -252,7 +235,6 @@
 				FRAMEWORK_VERSION = A;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "GBCloudBox/GBCloudBox-Prefix.pch";
-				INFOPLIST_FILE = "GBCloudBox/GBCloudBox-Info.plist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = framework;
 			};
@@ -267,7 +249,6 @@
 				FRAMEWORK_VERSION = A;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "GBCloudBox/GBCloudBox-Prefix.pch";
-				INFOPLIST_FILE = "GBCloudBox/GBCloudBox-Info.plist";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = framework;
 			};
