@@ -23,11 +23,11 @@
 NSString * const kGBCloudBoxResourceUpdatedNotification = @"kGBCloudBoxResourceUpdatedNotification";
 
 static NSString * const kLocalResourcesDirectory = @"GBCloudBoxResources";
-static NSString * const kRemoteResourcesPath = @"GBCloudBoxResource";
+static NSString * const kRemoteResourcesPath = @"GBCloudBoxResources";
 static BOOL const shouldUseSSL = YES;
 
 typedef void(^ResourceMetaInfoHandler)(NSNumber *latestRemoteVersion, NSURL *remoteResourceURL);
-typedef void(^ResourceDataHandler)(NSNumber *version, NSData *data);
+typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceData);
 
 @interface GBCloudBoxResource : NSObject
 
