@@ -335,13 +335,16 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
         if ([[self latestAvailableVersion] compare:latestRemoteVersion] == NSOrderedAscending) {
             NSLog(@"fetch remote resource");
             //fetch remote resource
-            [self _fetchResourceFromURL:remoteResourceURL handler:^(NSNumber *version, NSData *data) {
+            [self _fetchResourceFromURL:remoteResourceURL handler:^(NSNumber *resourceVersion, NSData *resourceData) {
+                //if the resource fetch had the version HTTP header set, then use that, otherwise just assume the one that the meta returned
+                NSNumber *version = resourceVersion ?: latestRemoteVersion;
+                
                 //store the resource in cache
-                self.cachedData = data;
+                self.cachedData = resourceData;
                 self.cachedVersion = version;
                 
                 //store to disk
-                [self _storeResourceLocally:data withVersion:version];
+                [self _storeResourceLocally:resourceData withVersion:version];
                 
                 //remove older ones from disk
                 [self _deleteOlderLocalResourceVersions];
@@ -350,7 +353,7 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
                 [self _callHandlers];
                 
                 //send notification
-                [[NSNotificationCenter defaultCenter] postNotificationName:kGBCloudBoxResourceUpdatedNotification object:self userInfo:@{@"data": data, @"version": version}];
+                [[NSNotificationCenter defaultCenter] postNotificationName:kGBCloudBoxResourceUpdatedNotification object:self userInfo:@{@"data": resourceData, @"meta version": latestRemoteVersion, @"resource version": resourceVersion}];
             }];
         }
         else {
