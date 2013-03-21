@@ -23,8 +23,27 @@
 NSString * const kGBCloudBoxResourceUpdatedNotification = @"kGBCloudBoxResourceUpdatedNotification";
 
 static NSString * const kLocalResourcesDirectory = @"GBCloudBoxResources";
-static NSString * const kRemoteResourcesPath = @"GBCloudBoxResources";
-static BOOL const shouldUseSSL = YES;
+static NSString * const kRemoteResourcesMetaPath = @"GBCloudBoxResourcesMeta";
+static BOOL const shouldUseSSL = NO;//foo
+
+@implementation NSArray (GBToolbox)
+
+-(NSArray *)map:(id(^)(id object))function {
+    NSUInteger count = self.count;
+    
+    // creates a results array in which to store results, sets the capacity for faster writes
+    NSMutableArray *resultsArray = [[NSMutableArray alloc] initWithCapacity:count];
+    
+    // applies the function to each item and stores the result in the new array
+    for (NSUInteger i=0; i<count; i++) {
+        resultsArray[i] = function(self[i]);
+    }
+    
+    // returns an immutable copy
+    return [resultsArray copy];
+}
+
+@end
 
 typedef void(^ResourceMetaInfoHandler)(NSNumber *latestRemoteVersion, NSURL *remoteResourceURL);
 typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceData);
@@ -79,7 +98,7 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
         self.identifier = resourceIdentifier;
         self.bundledResourcePath = bundledResourcePath;
         self.sourceServers = sourceServers;
-        
+        self.updatedHandlers = [NSMutableArray new];
         self.networkQueue = dispatch_queue_create("com.goonbee.TabApp.networkQueue", NULL);
     }
     
@@ -134,7 +153,12 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 }
 
 -(NSDictionary *)_dictionaryFromJSONData:(NSData *)data {
-    return [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:nil];
+    if (data) {
+        return [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:nil];
+    }
+    else {
+        return nil;
+    }
 }
 
 //Local helpers
@@ -175,7 +199,13 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 }
 
 -(NSArray *)_allLocalVersionsPaths {
-    return [[NSFileManager defaultManager] contentsOfDirectoryAtPath:[self _localPathForResource] error:nil];
+    NSString *resourcePath = [self _localPathForResource];
+    NSArray *raw = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:resourcePath error:nil];
+    NSArray *mapped = [raw map:^id(id object) {
+        return [resourcePath stringByAppendingPathComponent:(NSString *)object];
+    }];
+    
+    return mapped;
 }
 
 -(NSNumber *)_latestLocalVersionNumber {
@@ -233,24 +263,42 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 //Remote interaction helpers
 
 -(NSString *)_randomSourceServer {
-    return self.sourceServers[arc4random_uniform(self.sourceServers.count)];
+    if (self.sourceServers.count > 0) {
+        return self.sourceServers[arc4random_uniform(self.sourceServers.count)];
+    }
+    else {
+        return nil;
+    }
 }
 
--(NSURL *)_remoteResourcePath {
-    NSString *remoteResourcePath = [[[shouldUseSSL ? @"https://" : @"http://" stringByAppendingPathComponent:[self _randomSourceServer]] stringByAppendingPathComponent:kRemoteResourcesPath] stringByAppendingPathComponent:self.identifier];
+-(NSURL *)_remoteResourceMetaPath {
+    //first strip off the protocol if its there
+    NSString *rawSourceServer = [self _randomSourceServer];
+    NSRange range = [rawSourceServer rangeOfString:@"://"];
+    NSString *processedSourceServer;
+    if (range.location == NSNotFound) {
+        processedSourceServer = rawSourceServer;
+    }
+    else {
+        processedSourceServer = [rawSourceServer substringFromIndex:(range.location + 3)];
+    }
+    
+    //
+    NSString *remoteResourcePath = [[[shouldUseSSL ? @"https://" : @"http://" stringByAppendingPathComponent:processedSourceServer] stringByAppendingPathComponent:kRemoteResourcesMetaPath] stringByAppendingPathComponent:self.identifier];
     
     return [NSURL URLWithString:remoteResourcePath];
 }
 
 -(void)_fetchRemoteMetaInfo:(ResourceMetaInfoHandler)handler {
     dispatch_async(self.networkQueue, ^{
-        NSData *metaInfoData = [NSData dataWithContentsOfURL:[self _remoteResourcePath]];
+        NSData *metaInfoData = [NSData dataWithContentsOfURL:[self _remoteResourceMetaPath]];
         NSDictionary *metaInfoDictionary = [self _dictionaryFromJSONData:metaInfoData];
         
         dispatch_async(dispatch_get_main_queue(), ^{
             if (handler) {
-                NSNumber *version = metaInfoDictionary[@"v"];
-                NSURL *resourceURL = [NSURL URLWithString:metaInfoDictionary[@"url"]];
+                NSNumber *version = metaInfoDictionary[@"v"] != [NSNull null] ? metaInfoDictionary[@"v"] : nil;
+                NSURL *resourceURL = metaInfoDictionary[@"url"] != [NSNull null] ? [NSURL URLWithString:metaInfoDictionary[@"url"]] : nil;
+                
                 handler(version, resourceURL);
             }
         });
@@ -279,7 +327,7 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 -(void)_callHandlers {
     for (UpdateHandler handler in self.updatedHandlers) {
         if (handler) {
-            handler(self.cachedVersion, self.cachedData);
+            handler(self.identifier, self.cachedVersion, self.cachedData);
         }
     }
 }
@@ -330,27 +378,40 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
     NSNumber *localVersion = [self localVersion];
     NSNumber *bundledVersion = [self bundledVersion];
     
-    NSComparisonResult result = [localVersion compare:bundledVersion];
-    
-    if (result == NSOrderedAscending) {
+    //if they r both set, then find the biggest one
+    if (localVersion && bundledVersion) {
+        NSComparisonResult result = [localVersion compare:bundledVersion];
+        
+        if (result == NSOrderedAscending) {
+            return bundledVersion;
+        }
+        else {
+            return localVersion;
+        }
+    }
+    //just local
+    else if (localVersion) {
+        return localVersion;
+    }
+    //just bundled
+    else if (bundledVersion) {
         return bundledVersion;
     }
+    //none
     else {
-        return localVersion;
+        return nil;
     }
 }
 
 //asks the server if there is a newer version, and if there is: it fetches it, stores it in cache and on disk, deletes older local versions, calls handlers and posts notification
 -(void)update {
-    NSLog(@"fetch remote meta");
     //first fetch remote meta
     [self _fetchRemoteMetaInfo:^(NSNumber *latestRemoteVersion, NSURL *remoteResourceURL) {
         //check if remote has newer
-        if ([[self latestAvailableVersion] compare:latestRemoteVersion] == NSOrderedAscending) {
-            NSLog(@"fetch remote resource");
+        if (latestRemoteVersion && [[self latestAvailableVersion] compare:latestRemoteVersion] == NSOrderedAscending) {
             //fetch remote resource
             [self _fetchResourceFromURL:remoteResourceURL handler:^(NSNumber *resourceVersion, NSData *resourceData) {
-                //if the resource fetch had the version HTTP header set, then use that, otherwise just assume the one that the meta returned
+                //if the resource fetch had the version HTTP header set, then use that, otherwise just assume the version is what the meta returned
                 NSNumber *version = resourceVersion ?: latestRemoteVersion;
                 
                 //store the resource in cache
@@ -367,11 +428,16 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
                 [self _callHandlers];
                 
                 //send notification
-                [[NSNotificationCenter defaultCenter] postNotificationName:kGBCloudBoxResourceUpdatedNotification object:self userInfo:@{@"data": resourceData, @"meta version": latestRemoteVersion, @"resource version": resourceVersion}];
+                NSMutableDictionary *userInfo = [NSMutableDictionary new];
+                userInfo[@"identifier"] = self.identifier;
+                if (resourceData) userInfo[@"data"] = resourceData;
+                if (resourceVersion) userInfo[@"version"] = resourceVersion;
+                
+                [[NSNotificationCenter defaultCenter] postNotificationName:kGBCloudBoxResourceUpdatedNotification object:self userInfo:[userInfo copy]];
             }];
         }
         else {
-            NSLog(@"up to date");
+            //noop: up to date
         }
     }];
 }
@@ -416,10 +482,12 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 
 #pragma mark- public API
 
-+(void)registerResource:(NSString *)resourceIdentifier withBundledResourcePath:(NSString *)bundledResourcePath andSourceServers:(NSArray *)servers {
++(void)registerResource:(NSString *)resourceIdentifier withBundledResource:(NSString *)bundledResource andSourceServers:(NSArray *)servers {
     if (resourceIdentifier && ![resourceIdentifier isEqualToString:@""]) {
         //if the resource doesn't exist, create it
         if (!_cb.resources[resourceIdentifier]) {
+            NSString *bundledResourcePath = [[NSBundle mainBundle] pathForResource:bundledResource ofType:nil];//foo check this
+            NSLog(@"Path: %@", bundledResourcePath);
             _cb.resources[resourceIdentifier] = [[GBCloudBoxResource alloc] initWithResource:resourceIdentifier bundledResourcePath:bundledResourcePath andSourceServers:servers];
         }
         else {
