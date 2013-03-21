@@ -22,14 +22,17 @@
 extern NSString * const kGBCloudBoxResourceUpdatedNotification;
 
 typedef void(^UpdateHandler)(NSNumber *version, NSData *data);
+typedef id(^Deserializer)(NSData *data);
 
 @interface GBCloudBox : NSObject
 
 +(void)registerResource:(NSString *)resourceIdentifier withBundledResourcePath:(NSString *)bundledResourcePath andSourceServers:(NSArray *)servers;
-+(void)registerUpdateHandler:(UpdateHandler)handler forResource:(NSString *)resourceIdentifier;
++(void)registerPostUpdateHandler:(UpdateHandler)handler forResource:(NSString *)resourceIdentifier;
++(void)registerDeserializer:(Deserializer)deserializer forResource:(NSString *)resourceIdentifier;
 +(void)syncResource:(NSString *)resourceIdentifier;
 +(void)syncResources;
 +(NSData *)dataForResource:(NSString *)resourceIdentifier;
++(id)objectForResource:(NSString *)resourceIdentifier;
 
 @end
 

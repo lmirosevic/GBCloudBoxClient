@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		8A663FEB16F9A57800FDD892 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A663FEA16F9A57800FDD892 /* Cocoa.framework */; };
 		8A663FF916F9A57800FDD892 /* GBCloudBox.m in Sources */ = {isa = PBXBuildFile; fileRef = 8A663FF816F9A57800FDD892 /* GBCloudBox.m */; };
+		8AB2FC7316FAF02E00C49AE3 /* GBCloudBox.h in Headers */ = {isa = PBXBuildFile; fileRef = 8A663FF716F9A57800FDD892 /* GBCloudBox.h */; settings = {ATTRIBUTES = (Public, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -95,6 +96,7 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				8AB2FC7316FAF02E00C49AE3 /* GBCloudBox.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -273,6 +275,7 @@
 				8A663FFE16F9A57800FDD892 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

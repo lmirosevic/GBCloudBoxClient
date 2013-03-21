@@ -33,6 +33,7 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 
 @property (copy, atomic, readonly) NSString         *identifier;
 @property (strong, atomic) NSMutableArray           *updatedHandlers;
+@property (copy, atomic) Deserializer               deserializer;
 @property (strong, atomic) NSArray                  *sourceServers;
 @property (strong, atomic, readonly) NSString       *bundledResourcePath;
 
@@ -44,6 +45,9 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 
 //returns the data for the resource, tries cache first, otherwise latest local version, otherwise latest bundled version
 -(NSData *)data;
+
+//returns the deserialized data for the resource
+-(id)object;
 
 //returns the number of the latest local version, if there isnt one it returns nil
 -(NSNumber *)localVersion;
@@ -301,6 +305,16 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
     }
 }
 
+//returns the deserialized data for the resource
+-(id)object {
+    if (self.deserializer) {
+        return self.deserializer([self data]);
+    }
+    else {
+        return nil;
+    }
+}
+
 //returns the local version of the stored file
 -(NSNumber *)localVersion {
     return [self _latestLocalVersionNumber];
@@ -418,10 +432,20 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
     
 }
 
-+(void)registerUpdateHandler:(UpdateHandler)handler forResource:(NSString *)resourceIdentifier {
++(void)registerPostUpdateHandler:(UpdateHandler)handler forResource:(NSString *)resourceIdentifier {
     GBCloudBoxResource *resource;
     if ((resource = _cb.resources[resourceIdentifier])) {
         [resource.updatedHandlers addObject:[handler copy]];
+    }
+    else {
+        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
+    }
+}
+
++(void)registerDeserializer:(Deserializer)deserializer forResource:(NSString *)resourceIdentifier {
+    GBCloudBoxResource *resource;
+    if ((resource = _cb.resources[resourceIdentifier])) {
+        resource.deserializer = deserializer;
     }
     else {
         @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
@@ -448,6 +472,16 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
     GBCloudBoxResource *resource;
     if ((resource = _cb.resources[resourceIdentifier])) {
         return [resource data];
+    }
+    else {
+        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
+    }
+}
+
++(id)objectForResource:(NSString *)resourceIdentifier {
+    GBCloudBoxResource *resource;
+    if ((resource = _cb.resources[resourceIdentifier])) {
+        return [resource object];
     }
     else {
         @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
