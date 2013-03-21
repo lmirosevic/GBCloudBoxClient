@@ -22,6 +22,7 @@
 
 NSString * const kGBCloudBoxResourceUpdatedNotification = @"kGBCloudBoxResourceUpdatedNotification";
 
+static NSString * const kBundledResourcesBundleName = @"GBCloudBoxResources";
 static NSString * const kLocalResourcesDirectory = @"GBCloudBoxResources";
 static NSString * const kRemoteResourcesMetaPath = @"GBCloudBoxResourcesMeta";
 static BOOL const shouldUseSSL = NO;//foo
@@ -47,6 +48,12 @@ static BOOL const shouldUseSSL = NO;//foo
 
 typedef void(^ResourceMetaInfoHandler)(NSNumber *latestRemoteVersion, NSURL *remoteResourceURL);
 typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceData);
+typedef enum {
+    GBCloudBoxLatestVersionNeither = 0,
+    GBCloudBoxLatestVersionEqual,
+    GBCloudBoxLatestVersionBundled,
+    GBCloudBoxLatestVersionLocal,
+} GBCloudBoxLatestVersion;
 
 @interface GBCloudBoxResource : NSObject
 
@@ -324,6 +331,38 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 
 //Other helpers
 
+-(GBCloudBoxLatestVersion)_latestVersionStatus {
+    NSNumber *localVersion = [self localVersion];
+    NSNumber *bundledVersion = [self bundledVersion];
+    
+    //if they r both set, then find the biggest one
+    if (localVersion && bundledVersion) {
+        NSComparisonResult result = [localVersion compare:bundledVersion];
+        
+        if (result == NSOrderedAscending) {
+            return GBCloudBoxLatestVersionBundled;
+        }
+        else if (result == NSOrderedDescending) {
+            return GBCloudBoxLatestVersionLocal;
+        }
+        else {
+            return GBCloudBoxLatestVersionEqual;
+        }
+    }
+    //just local
+    else if (localVersion) {
+        return GBCloudBoxLatestVersionLocal;
+    }
+    //just bundled
+    else if (bundledVersion) {
+        return GBCloudBoxLatestVersionBundled;
+    }
+    //none
+    else {
+        return GBCloudBoxLatestVersionNeither;
+    }
+}
+
 -(void)_callHandlers {
     for (UpdateHandler handler in self.updatedHandlers) {
         if (handler) {
@@ -339,13 +378,21 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
     @synchronized(self) {
         //check cache first
         if (!_cachedData) {
-            //try to get the latest local version
-            if ((_cachedData = [self _dataForLatestLocalVersion])) {
-                _cachedVersion = [self _latestLocalVersionNumber];
-            }
-            //otherwise try to get latest bundled version
-            else if (!(_cachedData = [self _dataForLatestBundledVersion])) {
-                _cachedVersion = [self _latestBundledVersionNumber];
+            switch ([self _latestVersionStatus]) {
+                case GBCloudBoxLatestVersionLocal: {
+                    _cachedData = [self _dataForLatestLocalVersion];
+                    _cachedVersion = [self _latestLocalVersionNumber];
+                } break;
+                    
+                case GBCloudBoxLatestVersionBundled:
+                case GBCloudBoxLatestVersionEqual: {
+                    _cachedData = [self _dataForLatestBundledVersion];
+                    _cachedVersion = [self _latestBundledVersionNumber];
+                } break;
+                    
+                case GBCloudBoxLatestVersionNeither: {
+                    return nil;
+                } break;
             }
         }
         
@@ -375,31 +422,19 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 
 //returns the greatest of localVersion and bundledVersion
 -(NSNumber *)latestAvailableVersion {
-    NSNumber *localVersion = [self localVersion];
-    NSNumber *bundledVersion = [self bundledVersion];
-    
-    //if they r both set, then find the biggest one
-    if (localVersion && bundledVersion) {
-        NSComparisonResult result = [localVersion compare:bundledVersion];
-        
-        if (result == NSOrderedAscending) {
-            return bundledVersion;
-        }
-        else {
-            return localVersion;
-        }
-    }
-    //just local
-    else if (localVersion) {
-        return localVersion;
-    }
-    //just bundled
-    else if (bundledVersion) {
-        return bundledVersion;
-    }
-    //none
-    else {
-        return nil;
+    switch ([self _latestVersionStatus]) {
+        case GBCloudBoxLatestVersionLocal: {
+            return [self localVersion];
+        } break;
+            
+        case GBCloudBoxLatestVersionBundled:
+        case GBCloudBoxLatestVersionEqual: {
+            return [self bundledVersion];
+        } break;
+            
+        case GBCloudBoxLatestVersionNeither: {
+            return nil;
+        } break;
     }
 }
 
@@ -482,12 +517,11 @@ typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceDa
 
 #pragma mark- public API
 
-+(void)registerResource:(NSString *)resourceIdentifier withBundledResource:(NSString *)bundledResource andSourceServers:(NSArray *)servers {
++(void)registerResource:(NSString *)resourceIdentifier withSourceServers:(NSArray *)servers {
     if (resourceIdentifier && ![resourceIdentifier isEqualToString:@""]) {
         //if the resource doesn't exist, create it
         if (!_cb.resources[resourceIdentifier]) {
-            NSString *bundledResourcePath = [[NSBundle mainBundle] pathForResource:bundledResource ofType:nil];//foo check this
-            NSLog(@"Path: %@", bundledResourcePath);
+            NSString *bundledResourcePath = [[[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.bundle", kBundledResourcesBundleName]] stringByAppendingPathComponent:resourceIdentifier];
             _cb.resources[resourceIdentifier] = [[GBCloudBoxResource alloc] initWithResource:resourceIdentifier bundledResourcePath:bundledResourcePath andSourceServers:servers];
         }
         else {
