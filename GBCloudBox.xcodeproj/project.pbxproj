@@ -13,6 +13,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		8A521B761701D28200A89BE4 /* GBCloudBox-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GBCloudBox-Info.plist"; sourceTree = "<group>"; };
 		8A663FE716F9A57800FDD892 /* GBCloudBox.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = GBCloudBox.framework; sourceTree = BUILT_PRODUCTS_DIR; };
 		8A663FEA16F9A57800FDD892 /* Cocoa.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Cocoa.framework; path = System/Library/Frameworks/Cocoa.framework; sourceTree = SDKROOT; };
 		8A663FED16F9A57800FDD892 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
@@ -84,6 +85,7 @@
 		8A663FF116F9A57800FDD892 /* Supporting Files */ = {
 			isa = PBXGroup;
 			children = (
+				8A521B761701D28200A89BE4 /* GBCloudBox-Info.plist */,
 				8A663FF616F9A57800FDD892 /* GBCloudBox-Prefix.pch */,
 			);
 			name = "Supporting Files";
@@ -239,6 +241,8 @@
 				FRAMEWORK_VERSION = A;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "GBCloudBox/GBCloudBox-Prefix.pch";
+				INFOPLIST_FILE = "GBCloudBox/GBCloudBox-Info.plist";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = framework;
 			};
@@ -253,6 +257,8 @@
 				FRAMEWORK_VERSION = A;
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "GBCloudBox/GBCloudBox-Prefix.pch";
+				INFOPLIST_FILE = "GBCloudBox/GBCloudBox-Info.plist";
+				INSTALL_PATH = "@executable_path/../Frameworks";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				WRAPPER_EXTENSION = framework;
 			};
