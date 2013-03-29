@@ -18,37 +18,48 @@ First import header:
 
 Then you would register a resource like so:
 
+```objective-c
 // Tell GBCloudBox where to look for updates, enter an array of servers, the library will load balance between them
 [GBCloudBox registerResource:@"MyResource.js" withSourceServers:@[@"mygbcloudboxserver1.herokuapp.com", @"mygbcloudboxserver2.herokuapp.com"]];
-
+```
 
 Then get the resource data like so:
 
+```objective-c
 NSData *scriptData = [GBCloudBox dataForResource:@"MyResource.js"];
+```
 
 And then you would have an `NSData` instance representing the latest version of your resource.
 
 I like to register a deserializer for my resources, so that I can easily obtain native objects instead of NSData instances, in this case our resource is an NSString::
 
+```objective-c
 [GBCloudBox registerDeserializer:^id(NSData *data) {
     return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
 } forResource:@"MyResource.js"];
+```
 
 And then every time I want the object it's as simple as:
 
+```objective-c
 NSString *script = [GBCloudBox objectForResource:@"MyResource.js"];
+```
 
 You have to decide when to sync the object. It is an asynchronous background sync. To sync the latest version with our server for our resource you would call:
 
+```objective-c
 [GBCloudBox syncResource:@"Facebook.js"];
+```
 
 And GBCloudBox will post a `kGBCloudBoxResourceUpdatedNotification` notification once it's updated. Then you can simply get the latest version by calling `objectForResource:` or `dataForResource:` like above.
 
 There is also a block based API for registering an updated handler:
 
+```objective-c
 [GBCloudBox registerPostUpdateHandler:^(NSString *identifier, NSNumber *version, NSData *data) {
     //do something now that the resource has been updated
 } forResource:@"MyResource.js"];
+```
 
 Storage
 ------------
