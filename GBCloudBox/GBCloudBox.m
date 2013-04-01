@@ -19,6 +19,8 @@
 
 #import "GBCloudBox.h"
 
+#import <stdlib.h>
+
 
 NSString * const kGBCloudBoxResourceUpdatedNotification = @"kGBCloudBoxResourceUpdatedNotification";
 
@@ -271,7 +273,7 @@ typedef enum {
 
 -(NSString *)_randomSourceServer {
     if (self.sourceServers.count > 0) {
-        return self.sourceServers[arc4random_uniform(self.sourceServers.count)];
+        return self.sourceServers[arc4random() % self.sourceServers.count];
     }
     else {
         return nil;
