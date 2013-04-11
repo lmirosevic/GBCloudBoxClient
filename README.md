@@ -8,7 +8,7 @@ It comes with a [server implementation](https://github.com/lmirosevic/GBCloudBox
 Usage
 ------------
 
-In your app include a folder called `GBCloudBoxResource.bundle`. Save any resources to be bundle along with the app inside there. Resources should be saved as a folder with numbered files inside to indicate versions. e.g. you would save the file `MyResource.js` version 4 as `GBCloudBoxResources.bundle/MyResource.js/4`. File version should be incrementing integers.
+In your app include a folder called `GBCloudBoxResource.bundle`. Save any resources which you want to ship along with the app inside there. Resources should be saved as a folder with numbered files inside to indicate versions. e.g. you would save the file `MyResource.js` version 4 as `GBCloudBoxResources.bundle/MyResource.js/4`. File version should be incrementing integers.
 
 First import header:
 
@@ -19,11 +19,11 @@ First import header:
 Then you would register a resource like so:
 
 ```objective-c
-// Tell GBCloudBox where to look for updates, enter an array of servers, the library will load balance between them
+// Tell GBCloudBox where to look for updates: enter an array of servers, the library will load balance between them
 [GBCloudBox registerResource:@"MyResource.js" withSourceServers:@[@"mygbcloudboxserver1.herokuapp.com", @"mygbcloudboxserver2.herokuapp.com"]];
 ```
 
-Then get the resource data like so:
+Then anywhere in your app get the resource data:
 
 ```objective-c
 NSData *scriptData = [GBCloudBox dataForResource:@"MyResource.js"];
@@ -31,7 +31,7 @@ NSData *scriptData = [GBCloudBox dataForResource:@"MyResource.js"];
 
 And then you would have an `NSData` instance representing the latest version of your resource.
 
-I like to register a deserializer for my resources, so that I can easily obtain native objects instead of NSData instances, in this case our resource is an NSString::
+I like to register a deserializer for my resources, so that I can easily obtain native objects instead of NSData instances, in this case our resource is an NSString so our deserializer would be something like:
 
 ```objective-c
 [GBCloudBox registerDeserializer:^id(NSData *data) {
@@ -39,13 +39,13 @@ I like to register a deserializer for my resources, so that I can easily obtain 
 } forResource:@"MyResource.js"];
 ```
 
-And then every time I want the object it's as simple as:
+And then every time I want the NSString object it's as simple as:
 
 ```objective-c
 NSString *script = [GBCloudBox objectForResource:@"MyResource.js"];
 ```
 
-You have to decide when to sync the object. It is an asynchronous background sync. To sync the latest version with our server for our resource you would call:
+You have to decide when to sync the object. It is an asynchronous background sync so you can do it e.g. when your app starts up. To sync the latest version with our server for our resource you would call:
 
 ```objective-c
 [GBCloudBox syncResource:@"Facebook.js"];
@@ -53,7 +53,7 @@ You have to decide when to sync the object. It is an asynchronous background syn
 
 And GBCloudBox will post a `kGBCloudBoxResourceUpdatedNotification` notification once it's updated. Then you can simply get the latest version by calling `objectForResource:` or `dataForResource:` like above.
 
-There is also a block based API for registering an updated handler:
+Alternatively, there's also a block based API for registering a post-update handler:
 
 ```objective-c
 [GBCloudBox registerPostUpdateHandler:^(NSString *identifier, NSNumber *version, NSData *data) {
@@ -64,7 +64,7 @@ There is also a block based API for registering an updated handler:
 Storage
 ------------
 
-Your app can come bundled with resources so that it's ready to go even without an internet connection right from day 1. When your app syncs with the server and gets an updated version, it caches/stores this version locally to disk so that from that point onwards the latest version is always available, even if the internet won't be accessible again. When there is an internet connection available, the library will make a best effort to update, and will take care of caching and making sure your app always has the latest version available. The library is clever to only download the resource when a new version is available, so you can have arbitrarily large resources.
+Your app can come bundled with resources so that it's ready to go even without an internet connection right from day 1. When your app syncs with the server and gets an updated version, it caches/stores this version locally to disk so that from that point onwards the latest version is always available, even if the internet won't be accessible again. When there is an internet connection available, the library will make a best effort to update, and will take care of caching and making sure your app always has the latest version available. The library is clever to only download the resource when a new version is available, so you can have arbitrarily large resources and it will behave reasonably.
 
 Server (Ruby)
 ------------
