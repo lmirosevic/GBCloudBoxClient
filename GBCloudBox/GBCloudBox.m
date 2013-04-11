@@ -19,15 +19,17 @@
 
 #import "GBCloudBox.h"
 
+#import "JSONKit.h"
 #import <stdlib.h>
-
 
 NSString * const kGBCloudBoxResourceUpdatedNotification = @"kGBCloudBoxResourceUpdatedNotification";
 
 static NSString * const kBundledResourcesBundleName = @"GBCloudBoxResources";
 static NSString * const kLocalResourcesDirectory = @"GBCloudBoxResources";
 static NSString * const kRemoteResourcesMetaPath = @"GBCloudBoxResourcesMeta";
-static BOOL const shouldUseSSL = NO;//foo
+static BOOL const shouldUseSSL = YES;
+static NSString * const kVersionKey = @"v";
+static NSString * const kURLKey = @"url";
 
 @implementation NSArray (GBToolbox)
 
@@ -163,7 +165,9 @@ typedef enum {
 
 -(NSDictionary *)_dictionaryFromJSONData:(NSData *)data {
     if (data) {
-        return [NSJSONSerialization JSONObjectWithData:data options:kNilOptions error:nil];
+        NSDictionary *result = [[JSONDecoder decoder] objectWithData:data];
+        
+        return result;
     }
     else {
         return nil;
@@ -292,43 +296,46 @@ typedef enum {
         processedSourceServer = [rawSourceServer substringFromIndex:(range.location + 3)];
     }
     
-    //
-    NSString *remoteResourcePath = [[[shouldUseSSL ? @"https://" : @"http://" stringByAppendingPathComponent:processedSourceServer] stringByAppendingPathComponent:kRemoteResourcesMetaPath] stringByAppendingPathComponent:self.identifier];
+    NSString *remoteResourcePath = [processedSourceServer stringByAppendingPathComponent:[kRemoteResourcesMetaPath stringByAppendingPathComponent:self.identifier]];
+    NSString *fullPath = [NSString stringWithFormat:@"%@://%@", shouldUseSSL ? @"https" : @"http", remoteResourcePath];
     
-    return [NSURL URLWithString:remoteResourcePath];
+    return [NSURL URLWithString:fullPath];
 }
 
 -(void)_fetchRemoteMetaInfo:(ResourceMetaInfoHandler)handler {
     dispatch_async(self.networkQueue, ^{
-        NSData *metaInfoData = [NSData dataWithContentsOfURL:[self _remoteResourceMetaPath]];
+        NSURL *remoteResourceMetaPath = [self _remoteResourceMetaPath];
+        NSData *metaInfoData = [NSData dataWithContentsOfURL:remoteResourceMetaPath];
         NSDictionary *metaInfoDictionary = [self _dictionaryFromJSONData:metaInfoData];
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (handler) {
-                NSNumber *version = metaInfoDictionary[@"v"] != [NSNull null] ? metaInfoDictionary[@"v"] : nil;
-                NSURL *resourceURL = metaInfoDictionary[@"url"] != [NSNull null] ? [NSURL URLWithString:metaInfoDictionary[@"url"]] : nil;
-                
-                handler(version, resourceURL);
-            }
-        });
+
+        if (metaInfoDictionary) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                if (handler) {
+                    NSNumber *version = metaInfoDictionary[kVersionKey] != [NSNull null] ? metaInfoDictionary[kVersionKey] : nil;
+                    NSURL *resourceURL = metaInfoDictionary[kURLKey] != [NSNull null] ? [NSURL URLWithString:metaInfoDictionary[kURLKey]] : nil;
+                    
+                    handler(version, resourceURL);
+                }
+            });
+        }
     });
 }
 
 -(void)_fetchResourceFromURL:(NSURL *)remoteResourceURL handler:(ResourceDataHandler)handler {
-    dispatch_async(self.networkQueue, ^{
-        NSURLRequest *request = [NSURLRequest requestWithURL:remoteResourceURL];
-        NSHTTPURLResponse *response;
-        NSData *responseData = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:nil];
-
-        NSDictionary *headers = [response allHeaderFields];
-        NSNumber *responseVersion = @([headers[@"Resource-Version"] integerValue]);
-        
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (handler) {
-                handler(responseVersion, responseData);
-            }
-        });
-    });
+//    dispatch_async(self.networkQueue, ^{
+//        NSURLRequest *request = [NSURLRequest requestWithURL:remoteResourceURL];
+//        NSHTTPURLResponse *response;
+//        NSData *responseData = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:nil];
+//
+//        NSDictionary *headers = [response allHeaderFields];
+//        NSNumber *responseVersion = @([headers[@"Resource-Version"] integerValue]);
+//        
+//        dispatch_async(dispatch_get_main_queue(), ^{
+//            if (handler) {
+//                handler(responseVersion, responseData);
+//            }
+//        });
+//    });//foo
 }
 
 //Other helpers

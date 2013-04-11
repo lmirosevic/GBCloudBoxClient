@@ -1,0 +1,3 @@
+[submodule "GBCloudBox/JSONKit"]
+	path = GBCloudBox/JSONKit
+	url = git@github.com:johnezang/JSONKit.git
