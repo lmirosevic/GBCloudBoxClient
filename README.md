@@ -3,7 +3,7 @@ GBCloudBox Client (iOS & Mac OS X)
 
 GBCloudBox is a framework for over-the-air, asynchronous, in-the-background, resource syncing between iOS/Mac OS X apps and a server. Let's say your app depends on a javascript resource file called `MyResource.js`, but you want to be able to change it often without resubmitting your entire app to the App Store. GBCloudBox allows you to ship a bundled version of the resource inside your app, publish and distribute your app, and then once the app is out in the wild push updated versions of your resource to the cloud and have your apps in the wild automatically sync the resource as soon as the new one becomes available.
 
-It comes with a [server implementation](https://github.com/lmirosevic/GBCloudBoxServer-Ruby) which is preconfigured for 1 click deployment to Heroku. It's thoroughly load tested and can support 1300 req/s with a concurrency of 1000 users on a single dyno (i.e. for free). At overload capacity, it degrades gracefully and can maintain ~800ms end-to-end response time with 4000 concurrently connected users with about 38% dropped requests; i.e. a throughput of 3100 successful req/s.
+It comes with a [server implementation](https://github.com/lmirosevic/GBCloudBoxServer-Ruby) which is preconfigured for 1 click deployment to Heroku. It's thoroughly load tested and can support 1300 req/s with a concurrency of 1000 users on a single dyno (i.e. for free). At overload capacity, it degrades gracefully and can maintain ~800ms end-to-end response time with 4000 concurrently connected users with about 38% dropped requests; i.e. a throughput of 3100 successful req/s. You can also write your own server implementation if you wish.
 
 Usage
 ------------
