@@ -322,20 +322,20 @@ typedef enum {
 }
 
 -(void)_fetchResourceFromURL:(NSURL *)remoteResourceURL handler:(ResourceDataHandler)handler {
-//    dispatch_async(self.networkQueue, ^{
-//        NSURLRequest *request = [NSURLRequest requestWithURL:remoteResourceURL];
-//        NSHTTPURLResponse *response;
-//        NSData *responseData = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:nil];
-//
-//        NSDictionary *headers = [response allHeaderFields];
-//        NSNumber *responseVersion = @([headers[@"Resource-Version"] integerValue]);
-//        
-//        dispatch_async(dispatch_get_main_queue(), ^{
-//            if (handler) {
-//                handler(responseVersion, responseData);
-//            }
-//        });
-//    });//foo
+    dispatch_async(self.networkQueue, ^{
+        NSURLRequest *request = [NSURLRequest requestWithURL:remoteResourceURL];
+        NSHTTPURLResponse *response;
+        NSData *responseData = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:nil];
+
+        NSDictionary *headers = [response allHeaderFields];
+        NSNumber *responseVersion = @([headers[@"Resource-Version"] integerValue]);
+        
+        dispatch_async(dispatch_get_main_queue(), ^{
+            if (handler) {
+                handler(responseVersion, responseData);
+            }
+        });
+    });
 }
 
 //Other helpers
