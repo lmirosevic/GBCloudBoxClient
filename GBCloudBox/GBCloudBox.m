@@ -19,7 +19,6 @@
 
 #import "GBCloudBox.h"
 
-#import "JSONKit.h"
 #import <stdlib.h>
 
 NSString * const kGBCloudBoxResourceUpdatedNotification = @"kGBCloudBoxResourceUpdatedNotification";
@@ -163,17 +162,6 @@ typedef enum {
     }
 }
 
--(NSDictionary *)_dictionaryFromJSONData:(NSData *)data {
-    if (data) {
-        NSDictionary *result = [[JSONDecoder decoder] objectWithData:data];
-        
-        return result;
-    }
-    else {
-        return nil;
-    }
-}
-
 //Local helpers
 
 -(NSString *)_localPathForResource {
@@ -306,9 +294,9 @@ typedef enum {
     dispatch_async(self.networkQueue, ^{
         NSURL *remoteResourceMetaPath = [self _remoteResourceMetaPath];
         NSData *metaInfoData = [NSData dataWithContentsOfURL:remoteResourceMetaPath];
-        NSDictionary *metaInfoDictionary = [self _dictionaryFromJSONData:metaInfoData];
+        NSDictionary *metaInfoDictionary = [NSJSONSerialization JSONObjectWithData:metaInfoData options:0 error:nil];
 
-        if (metaInfoDictionary) {
+        if (metaInfoDictionary && [metaInfoDictionary isKindOfClass:NSDictionary.class]) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (handler) {
                     NSNumber *version = metaInfoDictionary[kVersionKey] != [NSNull null] ? metaInfoDictionary[kVersionKey] : nil;

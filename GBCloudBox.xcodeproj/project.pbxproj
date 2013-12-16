@@ -9,8 +9,6 @@
 /* Begin PBXBuildFile section */
 		8A663FEB16F9A57800FDD892 /* Cocoa.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8A663FEA16F9A57800FDD892 /* Cocoa.framework */; };
 		8A663FF916F9A57800FDD892 /* GBCloudBox.m in Sources */ = {isa = PBXBuildFile; fileRef = 8A663FF816F9A57800FDD892 /* GBCloudBox.m */; };
-		8A8018C11716B654003FDCED /* JSONKit.h in Headers */ = {isa = PBXBuildFile; fileRef = 8A8018BF1716B654003FDCED /* JSONKit.h */; };
-		8A8018C21716B654003FDCED /* JSONKit.m in Sources */ = {isa = PBXBuildFile; fileRef = 8A8018C01716B654003FDCED /* JSONKit.m */; settings = {COMPILER_FLAGS = "-fno-objc-arc"; }; };
 		8AB2FC7316FAF02E00C49AE3 /* GBCloudBox.h in Headers */ = {isa = PBXBuildFile; fileRef = 8A663FF716F9A57800FDD892 /* GBCloudBox.h */; settings = {ATTRIBUTES = (Public, ); }; };
 /* End PBXBuildFile section */
 
@@ -24,8 +22,6 @@
 		8A663FF616F9A57800FDD892 /* GBCloudBox-Prefix.pch */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "GBCloudBox-Prefix.pch"; sourceTree = "<group>"; };
 		8A663FF716F9A57800FDD892 /* GBCloudBox.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GBCloudBox.h; sourceTree = "<group>"; };
 		8A663FF816F9A57800FDD892 /* GBCloudBox.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GBCloudBox.m; sourceTree = "<group>"; };
-		8A8018BF1716B654003FDCED /* JSONKit.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = JSONKit.h; path = GBCloudBox/JSONKit/JSONKit.h; sourceTree = "<group>"; };
-		8A8018C01716B654003FDCED /* JSONKit.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = JSONKit.m; path = GBCloudBox/JSONKit/JSONKit.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,7 +39,6 @@
 		8A663FDD16F9A57800FDD892 = {
 			isa = PBXGroup;
 			children = (
-				8A8018BE1716B647003FDCED /* Libraries */,
 				8A663FF016F9A57800FDD892 /* GBCloudBox */,
 				8A663FE916F9A57800FDD892 /* Frameworks */,
 				8A663FE816F9A57800FDD892 /* Products */,
@@ -96,15 +91,6 @@
 			name = "Supporting Files";
 			sourceTree = "<group>";
 		};
-		8A8018BE1716B647003FDCED /* Libraries */ = {
-			isa = PBXGroup;
-			children = (
-				8A8018BF1716B654003FDCED /* JSONKit.h */,
-				8A8018C01716B654003FDCED /* JSONKit.m */,
-			);
-			name = Libraries;
-			sourceTree = "<group>";
-		};
 /* End PBXGroup section */
 
 /* Begin PBXHeadersBuildPhase section */
@@ -113,7 +99,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				8AB2FC7316FAF02E00C49AE3 /* GBCloudBox.h in Headers */,
-				8A8018C11716B654003FDCED /* JSONKit.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,7 +165,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				8A663FF916F9A57800FDD892 /* GBCloudBox.m in Sources */,
-				8A8018C21716B654003FDCED /* JSONKit.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
