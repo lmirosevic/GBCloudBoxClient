@@ -26,12 +26,20 @@ typedef id(^Deserializer)(NSData *data);
 
 @interface GBCloudBox : NSObject
 
-+(void)registerResource:(NSString *)resourceIdentifier withSourceServers:(NSArray *)servers;
-+(void)registerPostUpdateHandler:(UpdateHandler)handler forResource:(NSString *)resourceIdentifier;
-+(void)registerDeserializer:(Deserializer)deserializer forResource:(NSString *)resourceIdentifier;
+//Simple
++(void)setSourceServers:(NSArray *)sourceServers;
++(NSArray *)sourceServers;
++(void)registerResource:(NSString *)resourceIdentifier;
++(void)registerResources:(NSArray *)resourceIdentifiers;
++(BOOL)isResourceRegistered:(NSString *)resourceIdentifier;
++(NSData *)dataForResource:(NSString *)resourceIdentifier;
++(void)setDeserializer:(Deserializer)deserializer forResource:(NSString *)resourceIdentifier;
++(id)objectForResource:(NSString *)resourceIdentifier;
++(void)addPostUpdateHandler:(UpdateHandler)handler forResource:(NSString *)resourceIdentifier;
 +(void)syncResource:(NSString *)resourceIdentifier;
 +(void)syncResources;
-+(NSData *)dataForResource:(NSString *)resourceIdentifier;
-+(id)objectForResource:(NSString *)resourceIdentifier;
+
+//Advanced
++(void)registerResource:(NSString *)resourceIdentifier withSourceServers:(NSArray *)sourceServers;
 
 @end

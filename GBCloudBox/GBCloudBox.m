@@ -21,16 +21,94 @@
 
 #import <stdlib.h>
 
+#define _cb [GBCloudBox sharedInstance]
+
 NSString * const kGBCloudBoxResourceUpdatedNotification = @"kGBCloudBoxResourceUpdatedNotification";
 
-static NSString * const kBundledResourcesBundleName = @"GBCloudBoxResources";
-static NSString * const kLocalResourcesDirectory = @"GBCloudBoxResources";
-static NSString * const kRemoteResourcesMetaPath = @"GBCloudBoxResourcesMeta";
-static BOOL const shouldUseSSL = YES;
-static NSString * const kVersionKey = @"v";
-static NSString * const kURLKey = @"url";
+static NSString * const kBundledResourcesBundleName = @"GBCloudBoxResources.bundle";
+static NSString * const kBundledResourcesManifestFile = @"Manifest.plist";
+static NSString * const kBundledResourcesVersionKey = @"version";
+static NSString * const kBundledResourcesPathKey = @"path";
 
-@implementation NSArray (GBToolbox)
+static NSString * const kLocalResourcesDirectory = @"GBCloudBoxResources";
+
+static NSString * const kRemoteResourcesMetaPath = @"GBCloudBoxResourcesMeta";
+static NSString * const kRemoteMetaVersionKey = @"v";
+static NSString * const kRemoteMetaURLKey = @"url";
+
+typedef void(^ResourceMetaInfoHandler)(NSInteger latestRemoteVersion, NSURL *remoteResourceURL);
+typedef void(^ResourceDataHandler)(NSInteger resourceVersion, NSData *resourceData);
+typedef enum {
+    GBCloudBoxLatestVersionNeither = 0,
+    GBCloudBoxLatestVersionEqual,
+    GBCloudBoxLatestVersionBundled,
+    GBCloudBoxLatestVersionLocal,
+} GBCloudBoxLatestVersion;
+
+@interface NSArray (GBCloudBox)
+
+-(NSArray *)map:(id(^)(id object))function;
+
+@end
+
+@interface GBCloudBoxResourceMeta : NSObject
+
+@property (copy, atomic) NSString                               *path;
+@property (assign, atomic) NSInteger                            version;
+
++(GBCloudBoxResourceMeta *)metaWithPath:(NSString *)path version:(NSInteger)version;
+
+@end
+
+@interface GBCloudBoxResource : NSObject
+
+@property (copy, atomic, readonly) NSString                     *identifier;
+@property (strong, atomic) NSMutableArray                       *updatedHandlers;
+@property (copy, atomic) Deserializer                           deserializer;
+@property (strong, atomic) NSArray                              *sourceServers;
+@property (strong, atomic, readonly) GBCloudBoxResourceMeta     *bundledResourceMeta;
+
+@property (assign, nonatomic, readonly) NSInteger               localVersion;
+@property (assign, nonatomic, readonly) NSInteger               bundledVersion;
+@property (assign, nonatomic, readonly) NSInteger               latestAvailableVersion;
+
+//init method
+-(id)initWithResource:(NSString *)resourceIdentifier sourceServers:(NSArray *)sourceServers;
+
+//updates the resource if necessary
+-(void)update;
+
+//returns the data for the resource, tries cache first, otherwise latest local version, otherwise latest bundled version
+-(NSData *)data;
+
+//returns the deserialized data for the resource
+-(id)object;
+
+@end
+
+@interface GBCloudBox ()
+
+@property (strong, nonatomic) NSArray                           *defaultSourceServers;
+@property (strong, nonatomic) NSMutableDictionary               *resources;
+@property (strong, nonatomic) NSDictionary                      *bundledResourcesManifest;
+@property (assign, atomic) dispatch_queue_t                     networkQueue;
+
++(GBCloudBox *)sharedInstance;
+
+@end
+
+#define ThrowNonExistentResourceError(resourceIdentifier) @throw [NSException exceptionWithName:NSInvalidArgumentException reason:[NSString stringWithFormat:@"GBCloudBox: Resource %@ doesn't exist. Register it first.", resourceIdentifier] userInfo:nil];
+
+@interface GBCloudBoxResource ()
+
+@property (assign, atomic) NSInteger                            cachedVersion;
+@property (copy, atomic, readwrite) NSString                    *identifier;
+@property (strong, atomic) NSData                               *cachedData;
+@property (strong, atomic, readwrite) GBCloudBoxResourceMeta    *bundledResourceMeta;
+
+@end
+
+@implementation NSArray (GBCloudBox)
 
 -(NSArray *)map:(id(^)(id object))function {
     NSUInteger count = self.count;
@@ -49,53 +127,15 @@ static NSString * const kURLKey = @"url";
 
 @end
 
-typedef void(^ResourceMetaInfoHandler)(NSNumber *latestRemoteVersion, NSURL *remoteResourceURL);
-typedef void(^ResourceDataHandler)(NSNumber *resourceVersion, NSData *resourceData);
-typedef enum {
-    GBCloudBoxLatestVersionNeither = 0,
-    GBCloudBoxLatestVersionEqual,
-    GBCloudBoxLatestVersionBundled,
-    GBCloudBoxLatestVersionLocal,
-} GBCloudBoxLatestVersion;
+@implementation GBCloudBoxResourceMeta
 
-@interface GBCloudBoxResource : NSObject
-
-@property (copy, atomic, readonly) NSString         *identifier;
-@property (strong, atomic) NSMutableArray           *updatedHandlers;
-@property (copy, atomic) Deserializer               deserializer;
-@property (strong, atomic) NSArray                  *sourceServers;
-@property (strong, atomic, readonly) NSString       *bundledResourcePath;
-
-//init method
--(id)initWithResource:(NSString *)resourceIdentifier bundledResourcePath:(NSString *)bundledResourcePath andSourceServers:(NSArray *)sourceServers;
-
-//updates the resource if necessary
--(void)update;
-
-//returns the data for the resource, tries cache first, otherwise latest local version, otherwise latest bundled version
--(NSData *)data;
-
-//returns the deserialized data for the resource
--(id)object;
-
-//returns the number of the latest local version, if there isnt one it returns nil
--(NSNumber *)localVersion;
-
-//return the number of the latest bundled version, if there isnt one it returns nil
--(NSNumber *)bundledVersion;
-
-//returns the greatest of localVersion and bundledVersion
--(NSNumber *)latestAvailableVersion;
-
-@end
-
-@interface GBCloudBoxResource ()
-
-@property (assign, atomic) NSNumber                 *cachedVersion;
-@property (copy, atomic, readwrite) NSString        *identifier;
-@property (strong, atomic, readwrite) NSString      *bundledResourcePath;
-@property (strong, atomic) NSData                   *cachedData;
-@property (assign, atomic) dispatch_queue_t         networkQueue;
++(GBCloudBoxResourceMeta *)metaWithPath:(NSString *)path version:(NSInteger)version {
+    GBCloudBoxResourceMeta *meta = [GBCloudBoxResourceMeta new];
+    meta.path = path;
+    meta.version = version;
+    
+    return meta;
+}
 
 @end
 
@@ -103,27 +143,35 @@ typedef enum {
 
 #pragma mark - memory
 
--(id)initWithResource:(NSString *)resourceIdentifier bundledResourcePath:(NSString *)bundledResourcePath andSourceServers:(NSArray *)sourceServers {
+-(id)initWithResource:(NSString *)resourceIdentifier sourceServers:(NSArray *)sourceServers {
     if (self = [super init]) {
         self.identifier = resourceIdentifier;
-        self.bundledResourcePath = bundledResourcePath;
         self.sourceServers = sourceServers;
         self.updatedHandlers = [NSMutableArray new];
-        self.networkQueue = dispatch_queue_create("com.goonbee.TabApp.networkQueue", NULL);
+ 
+        [self _initializeBundledMeta];
     }
     
     return self;
 }
 
--(void)dealloc {
-    dispatch_release(self.networkQueue);
-}
-
 #pragma mark - private API
 
-//Functional Helpers
+-(void)_initializeBundledMeta {
+    NSDictionary *resourceInfo;
+    if ((resourceInfo = _cb.bundledResourcesManifest[self.identifier])) {
+        NSString *path = [[[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:kBundledResourcesBundleName] stringByAppendingPathComponent:resourceInfo[kBundledResourcesPathKey]];
+        NSInteger version = [resourceInfo[kBundledResourcesVersionKey] integerValue];
+        
+        self.bundledResourceMeta = [GBCloudBoxResourceMeta metaWithPath:path version:version];
+    }
+    else {
+        NSLog(@"GBCloudBox: Warning, no bundled resource available for %@. If the internet is down or the resource is requested before it gets updated, it won't be available.", self.identifier);
+        self.bundledResourceMeta = nil;
+    }
+}
 
--(NSNumber *)_latestVersionForPaths:(NSArray *)paths {
+-(NSInteger)_latestVersionForPaths:(NSArray *)paths {
     if (paths) {
         NSInteger acc = 0;
         NSString *fileName;
@@ -137,10 +185,10 @@ typedef enum {
             }
         }
         
-        return @(acc);
+        return acc;
     }
     else {
-        return nil;
+        return 0;
     }
 }
 
@@ -154,7 +202,7 @@ typedef enum {
     }
     //its a dir
     else if (fileExists && isDir) {
-        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"expected file but found directory" userInfo:@{@"path": path}];
+        @throw [NSException exceptionWithName:NSInternalInconsistencyException reason:@"GBCloudBox: Expected file but found directory" userInfo:@{@"path": path}];
     }
     //file doesnt exist
     else {
@@ -187,7 +235,7 @@ typedef enum {
     else if (!fileExists) {
         //first create directory
         if (![[NSFileManager defaultManager] createDirectoryAtPath:path withIntermediateDirectories:YES attributes:nil error:nil]) {
-            @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"couldnt create directory" userInfo:@{@"path": path}];
+            @throw [NSException exceptionWithName:NSInternalInconsistencyException reason:@"GBCloudBox: Couldnt create directory" userInfo:@{@"path": path}];
         }
         
         //return path
@@ -195,7 +243,7 @@ typedef enum {
     }
     //theres a file there
     else {
-        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"found file instead of folder in path" userInfo:@{@"path": path}];
+        @throw [NSException exceptionWithName:NSInternalInconsistencyException reason:@"GBCloudBox: Found file instead of folder in path" userInfo:@{@"path": path}];
     }
 }
 
@@ -209,23 +257,23 @@ typedef enum {
     return mapped;
 }
 
--(NSNumber *)_latestLocalVersionNumber {
+-(NSInteger)_latestLocalVersionNumber {
     return [self _latestVersionForPaths:[self _allLocalVersionsPaths]];
 }
 
 -(NSString *)_latestLocalVersionPath {
-    return [[self _localPathForResource] stringByAppendingPathComponent:[[self _latestLocalVersionNumber] stringValue]];
+    return [[self _localPathForResource] stringByAppendingPathComponent:[NSString stringWithFormat:@"%d", [self _latestLocalVersionNumber]]];
 }
 
--(NSString *)_localPathForVersion:(NSNumber *)version {
-    return [[self _localPathForResource] stringByAppendingPathComponent:[version stringValue]];
+-(NSString *)_localPathForVersion:(NSInteger)version {
+    return [[self _localPathForResource] stringByAppendingPathComponent:[NSString stringWithFormat:@"%d", version]];
 }
 
 -(NSData *)_dataForLatestLocalVersion {
     return [self _dataForPath:[self _latestLocalVersionPath]];
 }
 
--(void)_storeResourceLocally:(NSData *)data withVersion:(NSNumber *)version {
+-(void)_storeResourceLocally:(NSData *)data withVersion:(NSInteger)version {
     NSString *path = [self _localPathForVersion:version];
     
     [data writeToFile:path atomically:YES];
@@ -245,16 +293,12 @@ typedef enum {
 
 //Bundled helpers
 
--(NSArray *)_allBundledVersionsPaths {
-    return [[NSFileManager defaultManager] contentsOfDirectoryAtPath:self.bundledResourcePath error:nil];
-}
-
--(NSNumber *)_latestBundledVersionNumber {
-    return [self _latestVersionForPaths:[self _allBundledVersionsPaths]];
+-(NSInteger)_latestBundledVersionNumber {
+    return self.bundledResourceMeta.version;
 }
 
 -(NSString *)_latestBundledVersionPath {
-    return [self.bundledResourcePath stringByAppendingPathComponent:[[self _latestBundledVersionNumber] stringValue]];
+    return self.bundledResourceMeta.path;
 }
 
 -(NSData *)_dataForLatestBundledVersion {
@@ -273,34 +317,23 @@ typedef enum {
 }
 
 -(NSURL *)_remoteResourceMetaPath {
-    //first strip off the protocol if its there
-    NSString *rawSourceServer = [self _randomSourceServer];
-    NSRange range = [rawSourceServer rangeOfString:@"://"];
-    NSString *processedSourceServer;
-    if (range.location == NSNotFound) {
-        processedSourceServer = rawSourceServer;
-    }
-    else {
-        processedSourceServer = [rawSourceServer substringFromIndex:(range.location + 3)];
-    }
+    NSString *remoteResourceURLString = [[self _randomSourceServer] stringByAppendingPathComponent:[kRemoteResourcesMetaPath stringByAppendingPathComponent:self.identifier]];
     
-    NSString *remoteResourcePath = [processedSourceServer stringByAppendingPathComponent:[kRemoteResourcesMetaPath stringByAppendingPathComponent:self.identifier]];
-    NSString *fullPath = [NSString stringWithFormat:@"%@://%@", shouldUseSSL ? @"https" : @"http", remoteResourcePath];
-    
-    return [NSURL URLWithString:fullPath];
+    return [NSURL URLWithString:remoteResourceURLString];
 }
 
 -(void)_fetchRemoteMetaInfo:(ResourceMetaInfoHandler)handler {
-    dispatch_async(self.networkQueue, ^{
+    dispatch_async(_cb.networkQueue, ^{
         NSURL *remoteResourceMetaPath = [self _remoteResourceMetaPath];
         NSData *metaInfoData = [NSData dataWithContentsOfURL:remoteResourceMetaPath];
-        NSDictionary *metaInfoDictionary = [NSJSONSerialization JSONObjectWithData:metaInfoData options:0 error:nil];
+        
+        NSDictionary *metaInfoDictionary = metaInfoData.length > 0 ? [NSJSONSerialization JSONObjectWithData:metaInfoData options:0 error:nil] : nil;
 
         if (metaInfoDictionary && [metaInfoDictionary isKindOfClass:NSDictionary.class]) {
             dispatch_async(dispatch_get_main_queue(), ^{
                 if (handler) {
-                    NSNumber *version = metaInfoDictionary[kVersionKey] != [NSNull null] ? metaInfoDictionary[kVersionKey] : nil;
-                    NSURL *resourceURL = metaInfoDictionary[kURLKey] != [NSNull null] ? [NSURL URLWithString:metaInfoDictionary[kURLKey]] : nil;
+                    NSInteger version = metaInfoDictionary[kRemoteMetaVersionKey] != [NSNull null] ? [metaInfoDictionary[kRemoteMetaVersionKey] integerValue] : 0;
+                    NSURL *resourceURL = metaInfoDictionary[kRemoteMetaURLKey] != [NSNull null] ? [NSURL URLWithString:metaInfoDictionary[kRemoteMetaURLKey]] : nil;
                     
                     handler(version, resourceURL);
                 }
@@ -310,13 +343,13 @@ typedef enum {
 }
 
 -(void)_fetchResourceFromURL:(NSURL *)remoteResourceURL handler:(ResourceDataHandler)handler {
-    dispatch_async(self.networkQueue, ^{
+    dispatch_async(_cb.networkQueue, ^{
         NSURLRequest *request = [NSURLRequest requestWithURL:remoteResourceURL];
         NSHTTPURLResponse *response;
         NSData *responseData = [NSURLConnection sendSynchronousRequest:request returningResponse:&response error:nil];
 
         NSDictionary *headers = [response allHeaderFields];
-        NSNumber *responseVersion = @([headers[@"Resource-Version"] integerValue]);
+        NSInteger responseVersion = [headers[@"Resource-Version"] integerValue];
         
         dispatch_async(dispatch_get_main_queue(), ^{
             if (handler) {
@@ -329,17 +362,15 @@ typedef enum {
 //Other helpers
 
 -(GBCloudBoxLatestVersion)_latestVersionStatus {
-    NSNumber *localVersion = [self localVersion];
-    NSNumber *bundledVersion = [self bundledVersion];
+    NSInteger localVersion = [self localVersion];
+    NSInteger bundledVersion = [self bundledVersion];
     
     //if they r both set, then find the biggest one
     if (localVersion && bundledVersion) {
-        NSComparisonResult result = [localVersion compare:bundledVersion];
-        
-        if (result == NSOrderedAscending) {
+        if (bundledVersion > localVersion) {
             return GBCloudBoxLatestVersionBundled;
         }
-        else if (result == NSOrderedDescending) {
+        else if (bundledVersion < localVersion) {
             return GBCloudBoxLatestVersionLocal;
         }
         else {
@@ -363,7 +394,7 @@ typedef enum {
 -(void)_callHandlers {
     for (UpdateHandler handler in self.updatedHandlers) {
         if (handler) {
-            handler(self.identifier, [self.cachedVersion integerValue], self.cachedData);
+            handler(self.identifier, self.cachedVersion, self.cachedData);
         }
     }
 }
@@ -408,17 +439,17 @@ typedef enum {
 }
 
 //returns the local version of the stored file
--(NSNumber *)localVersion {
+-(NSInteger)localVersion {
     return [self _latestLocalVersionNumber];
 }
 
 //returns the number of the latest bundled version, if there isnt one it returns nil
--(NSNumber *)bundledVersion {
+-(NSInteger)bundledVersion {
     return [self _latestBundledVersionNumber];
 }
 
 //returns the greatest of localVersion and bundledVersion
--(NSNumber *)latestAvailableVersion {
+-(NSInteger)latestAvailableVersion {
     switch ([self _latestVersionStatus]) {
         case GBCloudBoxLatestVersionLocal: {
             return [self localVersion];
@@ -430,7 +461,7 @@ typedef enum {
         } break;
             
         case GBCloudBoxLatestVersionNeither: {
-            return nil;
+            return 0;
         } break;
     }
 }
@@ -438,13 +469,13 @@ typedef enum {
 //asks the server if there is a newer version, and if there is: it fetches it, stores it in cache and on disk, deletes older local versions, calls handlers and posts notification
 -(void)update {
     //first fetch remote meta
-    [self _fetchRemoteMetaInfo:^(NSNumber *latestRemoteVersion, NSURL *remoteResourceURL) {
+    [self _fetchRemoteMetaInfo:^(NSInteger latestRemoteVersion, NSURL *remoteResourceURL) {
         //check if remote has newer
-        if (latestRemoteVersion && [[self latestAvailableVersion] compare:latestRemoteVersion] == NSOrderedAscending) {
+        if (latestRemoteVersion > [self latestAvailableVersion]) {
             //fetch remote resource
-            [self _fetchResourceFromURL:remoteResourceURL handler:^(NSNumber *resourceVersion, NSData *resourceData) {
+            [self _fetchResourceFromURL:remoteResourceURL handler:^(NSInteger resourceVersion, NSData *resourceData) {
                 //if the resource fetch had the version HTTP header set, then use that, otherwise just assume the version is what the meta returned
-                NSNumber *version = resourceVersion ?: latestRemoteVersion;
+                NSInteger version = resourceVersion ?: latestRemoteVersion;
                 
                 //store the resource in cache
                 self.cachedData = resourceData;
@@ -463,7 +494,7 @@ typedef enum {
                 NSMutableDictionary *userInfo = [NSMutableDictionary new];
                 userInfo[@"identifier"] = self.identifier;
                 if (resourceData) userInfo[@"data"] = resourceData;
-                if (resourceVersion) userInfo[@"version"] = resourceVersion;
+                if (resourceVersion) userInfo[@"version"] = @(resourceVersion);
                 
                 [[NSNotificationCenter defaultCenter] postNotificationName:kGBCloudBoxResourceUpdatedNotification object:self userInfo:[userInfo copy]];
             }];
@@ -476,19 +507,10 @@ typedef enum {
 
 @end
 
-
-@interface GBCloudBox ()
-
-@property (strong, nonatomic) NSMutableDictionary *resources;
-
-@end
-
-
 @implementation GBCloudBox
 
-#pragma mark - memory
+#pragma mark - Memory
 
-#define _cb [GBCloudBox sharedInstance]
 +(GBCloudBox *)sharedInstance {
     static GBCloudBox *sharedInstance;
     
@@ -500,54 +522,73 @@ typedef enum {
     }
 }
 
-- (id)init {
+-(id)init {
     self = [super init];
     if (self) {
         self.resources = [NSMutableDictionary new];
+        self.bundledResourcesManifest = [self _readBundledResourcesManifest];
+        self.networkQueue = dispatch_queue_create("com.goonbee.GBCloudBox.networkQueue", NULL);
     }
     return self;
 }
 
-- (void)dealloc {
-    self.resources = nil;
+-(void)dealloc {
+    dispatch_release(self.networkQueue);
 }
 
 #pragma mark- public API
 
-+(void)registerResource:(NSString *)resourceIdentifier withSourceServers:(NSArray *)servers {
-    if (resourceIdentifier && ![resourceIdentifier isEqualToString:@""]) {
-        //if the resource doesn't exist, create it
-        if (!_cb.resources[resourceIdentifier]) {
-            NSString *bundledResourcePath = [[[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.bundle", kBundledResourcesBundleName]] stringByAppendingPathComponent:resourceIdentifier];
-            _cb.resources[resourceIdentifier] = [[GBCloudBoxResource alloc] initWithResource:resourceIdentifier bundledResourcePath:bundledResourcePath andSourceServers:servers];
-        }
-        else {
-            NSLog(@"GBCloudBox: resource \"%@\" already exists", resourceIdentifier);
-        }
-    }
-    else {
-        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"must pass valid string for resource identifier" userInfo:nil];
-    }
-    
++(void)setSourceServers:(NSArray *)sourceServers {
+    _cb.defaultSourceServers = sourceServers;
 }
 
-+(void)registerPostUpdateHandler:(UpdateHandler)handler forResource:(NSString *)resourceIdentifier {
++(NSArray *)sourceServers {
+    return _cb.defaultSourceServers;
+}
+
++(void)registerResources:(NSArray *)resourceIdentifiers {
+    for (NSString *resource in resourceIdentifiers) {
+        [self registerResource:resource];
+    }
+}
+
++(void)registerResource:(NSString *)resourceIdentifier {
+    [self registerResource:resourceIdentifier withSourceServers:nil];
+}
+
++(BOOL)isResourceRegistered:(NSString *)resourceIdentifier {
+    if (![resourceIdentifier isKindOfClass:NSString.class]) @throw [NSException exceptionWithName:NSInvalidArgumentException reason:@"GBCloudBox: Must pass valid string for resourceIdentifier." userInfo:nil];
+    
+    return [self _isResourceRegistered:resourceIdentifier];
+}
+
++(void)registerResource:(NSString *)resourceIdentifier withSourceServers:(NSArray *)servers {
+    if (!resourceIdentifier || [resourceIdentifier isEqualToString:@""]) @throw [NSException exceptionWithName:NSInvalidArgumentException reason:@"GBCloudBox: Must pass valid string for resourceIdentifier." userInfo:nil];
+    if ([self _isResourceRegistered:resourceIdentifier]) [NSException exceptionWithName:NSInvalidArgumentException reason:[NSString stringWithFormat:@"GBCloudBox: Resource %@ is already registered", resourceIdentifier] userInfo:nil];
+    
+    NSArray *sourceServers = servers ?: [self sourceServers];
+    if (!(sourceServers.count > 0)) [NSException exceptionWithName:NSInvalidArgumentException reason:@"GBCloudBox: No source servers registered." userInfo:nil];
+
+    _cb.resources[resourceIdentifier] = [[GBCloudBoxResource alloc] initWithResource:resourceIdentifier sourceServers:sourceServers];
+}
+
++(void)addPostUpdateHandler:(UpdateHandler)handler forResource:(NSString *)resourceIdentifier {
     GBCloudBoxResource *resource;
     if ((resource = _cb.resources[resourceIdentifier])) {
         [resource.updatedHandlers addObject:[handler copy]];
     }
     else {
-        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
+        ThrowNonExistentResourceError(resourceIdentifier)
     }
 }
 
-+(void)registerDeserializer:(Deserializer)deserializer forResource:(NSString *)resourceIdentifier {
++(void)setDeserializer:(Deserializer)deserializer forResource:(NSString *)resourceIdentifier {
     GBCloudBoxResource *resource;
     if ((resource = _cb.resources[resourceIdentifier])) {
         resource.deserializer = deserializer;
     }
     else {
-        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
+        ThrowNonExistentResourceError(resourceIdentifier)
     }
 }
 
@@ -557,13 +598,13 @@ typedef enum {
         [resource update];
     }
     else {
-        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
+        ThrowNonExistentResourceError(resourceIdentifier)
     }
 }
 
 +(void)syncResources {
-    for (GBCloudBoxResource *resource in _cb.resources) {
-        [resource update];
+    for (GBCloudBoxResource *resourceName in _cb.resources) {
+        [_cb.resources[resourceName] update];
     }
 }
 
@@ -573,7 +614,7 @@ typedef enum {
         return [resource data];
     }
     else {
-        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
+        ThrowNonExistentResourceError(resourceIdentifier)
     }
 }
 
@@ -583,8 +624,43 @@ typedef enum {
         return [resource object];
     }
     else {
-        @throw [NSException exceptionWithName:@"GBCloudBox" reason:@"resource doesn't exist. create it first" userInfo:@{@"resourceIdentiier": resourceIdentifier}];
+        ThrowNonExistentResourceError(resourceIdentifier)
     }
+}
+
+#pragma mark - Private API
+
+-(NSDictionary *)_readBundledResourcesManifest {
+    NSString *manifestFilePath = [[[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:kBundledResourcesBundleName] stringByAppendingPathComponent:kBundledResourcesManifestFile];
+    NSDictionary *manifest = [NSDictionary dictionaryWithContentsOfFile:manifestFilePath];
+    
+    //verify the manifest
+    if (![self _isManifestValid:manifest]) @throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[NSString stringWithFormat:@"GBCloudBox: The manifest file %@ in %@ is invalid.", kBundledResourcesManifestFile, kBundledResourcesBundleName] userInfo:nil];
+    
+    return manifest;
+}
+
+-(BOOL)_isManifestValid:(NSDictionary *)manifest {
+    //check that the manifest is a valid dict
+    if (![manifest isKindOfClass:NSDictionary.class]) return NO;
+    
+    for (NSString *resource in manifest) {
+        //check that key is string
+        if (![resource isKindOfClass:NSString.class]) return NO;
+        
+        //check that version is number
+        if (!([manifest[resource][kBundledResourcesVersionKey] integerValue] > 0)) return NO;
+        
+        //check that path is string
+        if (![manifest[resource][kBundledResourcesPathKey] isKindOfClass:NSString.class]) return NO;
+    }
+    
+    //must be valid
+    return YES;
+}
+
++(BOOL)_isResourceRegistered:(NSString *)resourceIdentifier {
+    return (_cb.resources[resourceIdentifier] != nil);
 }
 
 @end
