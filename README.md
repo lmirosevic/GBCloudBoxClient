@@ -8,57 +8,92 @@ It comes with a [server implementation](https://github.com/lmirosevic/GBCloudBox
 Usage
 ------------
 
-In your app include a folder called `GBCloudBoxResource.bundle`. Save any resources which you want to ship along with the app inside there. Resources should be saved as a folder with numbered files inside to indicate versions. e.g. you would save the file `MyResource.js` version 4 as `GBCloudBoxResources.bundle/MyResource.js/4`. File version should be incrementing integers.
-
-First import header:
-
+First add the GBCloudBox server(s):
 ```objective-c
-#import <GBCloudBox/GBCloudBox.h>
+//Set the source servers, takes an array so if you have multiple servers, the library will load balance between them
+[GBCloudBox setSourceServers:@[@"https://www.server1.com", @"https://www.server2.com"]];
 ```
 
-Then you would register a resource like so:
-
+Then register a resource:
 ```objective-c
-// Tell GBCloudBox where to look for updates: enter an array of servers, the library will load balance between them
-[GBCloudBox registerResource:@"MyResource.js" withSourceServers:@[@"mygbcloudboxserver1.herokuapp.com", @"mygbcloudboxserver2.herokuapp.com"]];
+[GBCloudBox registerResource:@"MyResource.js"];
 ```
 
-Then anywhere in your app get the resource data:
-
+Then anywhere in your app you can get the resource data:
 ```objective-c
 NSData *scriptData = [GBCloudBox dataForResource:@"MyResource.js"];
 ```
 
 And then you would have an `NSData` instance representing the latest version of your resource.
 
-I like to register a deserializer for my resources, so that I can easily obtain native objects instead of NSData instances, in this case our resource is an NSString so our deserializer would be something like:
+I like to register a deserializer for my resources, so that I can easily obtain native objects instead of `NSData` instances, in this case our resource is an `NSString` so our deserializer would be something like:
 
 ```objective-c
-[GBCloudBox registerDeserializer:^id(NSData *data) {
+[GBCloudBox setDeserializer:^id(NSData *data) {
     return [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
 } forResource:@"MyResource.js"];
 ```
 
-And then every time I want the NSString object it's as simple as:
+Now every time I want the actual `NSString` object it's as simple as:
 
 ```objective-c
 NSString *script = [GBCloudBox objectForResource:@"MyResource.js"];
 ```
 
-You have to decide when to sync the object. It is an asynchronous background sync so you can do it e.g. when your app starts up. To sync the latest version with our server for our resource you would call:
+You have to decide when to sync the object. It is an asynchronous background sync so you can do it e.g. when your app starts up. To sync the latest version with the server for our resource you would call:
 
 ```objective-c
-[GBCloudBox syncResource:@"Facebook.js"];
+[GBCloudBox syncResource:@"MyResource.js"];
 ```
 
-And GBCloudBox will post a `kGBCloudBoxResourceUpdatedNotification` notification once it's updated. Then you can simply get the latest version by calling `objectForResource:` or `dataForResource:` like above.
+To sync all registered resources just call:
+```objective-c
+[GBCloudBox syncResources];
+```
+
+GBCloudBox will post a `kGBCloudBoxResourceUpdatedNotification` notification once it's updated. Then you can simply get the latest version by calling `objectForResource:` or `dataForResource:` like above.
 
 Alternatively, there's also a block based API for registering a post-update handler:
 
 ```objective-c
-[GBCloudBox registerPostUpdateHandler:^(NSString *identifier, NSNumber *version, NSData *data) {
+[GBCloudBox addPostUpdateHandler:^(NSString *identifier, NSInteger version, NSData *data) {
     //do something now that the resource has been updated
 } forResource:@"MyResource.js"];
+```
+
+It's a good idea to bundle an initial version of the resource along with the app so it's available immediately (in case the user doesn't have internet or in case the app won't run without it).
+
+In your app include a folder called `GBCloudBoxResource.bundle`. Save any resources which you want to ship along with the app inside there. Inside this bundle, add a `Manifest.plist` plist which enumerates the bundled resources along with their versions. The `Manifest.plist` has the following format:
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>MyResource.js</key>
+	<dict>
+		<key>version</key>
+		<integer>1</integer>
+		<key>path</key>
+		<string>Resources/MyResource.js</string>
+	</dict>
+	<key>SomeOtherResource.json</key>
+	<dict>
+		<key>version</key>
+		<integer>4</integer>
+		<key>path</key>
+		<string>Resources/SomeOtherResource.json</string>
+	</dict>
+</dict>
+</plist>
+```
+
+The library will then intelligently select the latest available resource, cache the latest version, and always stay up to date.
+
+Don't forget to import header:
+
+```objective-c
+#import <GBCloudBox/GBCloudBox.h>
 ```
 
 Storage
