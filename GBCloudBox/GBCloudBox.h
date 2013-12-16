@@ -21,7 +21,7 @@
 
 extern NSString * const kGBCloudBoxResourceUpdatedNotification;
 
-typedef void(^UpdateHandler)(NSString *identifier, NSNumber *version, NSData *data);
+typedef void(^UpdateHandler)(NSString *identifier, NSInteger version, NSData *data);
 typedef id(^Deserializer)(NSData *data);
 
 @interface GBCloudBox : NSObject

@@ -375,7 +375,7 @@ typedef enum {
 -(void)_callHandlers {
     for (UpdateHandler handler in self.updatedHandlers) {
         if (handler) {
-            handler(self.identifier, self.cachedVersion, self.cachedData);
+            handler(self.identifier, [self.cachedVersion integerValue], self.cachedData);
         }
     }
 }
