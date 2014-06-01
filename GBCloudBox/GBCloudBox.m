@@ -262,11 +262,11 @@ typedef enum {
 }
 
 -(NSString *)_latestLocalVersionPath {
-    return [[self _localPathForResource] stringByAppendingPathComponent:[NSString stringWithFormat:@"%d", [self _latestLocalVersionNumber]]];
+    return [[self _localPathForResource] stringByAppendingPathComponent:[NSString stringWithFormat:@"%ld", (long)[self _latestLocalVersionNumber]]];
 }
 
 -(NSString *)_localPathForVersion:(NSInteger)version {
-    return [[self _localPathForResource] stringByAppendingPathComponent:[NSString stringWithFormat:@"%d", version]];
+    return [[self _localPathForResource] stringByAppendingPathComponent:[NSString stringWithFormat:@"%ld", (long)version]];
 }
 
 -(NSData *)_dataForLatestLocalVersion {
