@@ -59,11 +59,20 @@ static NSString *MD5ForData(NSData *data) {
             ];
 }
 
-@interface NSArray (GBCloudBox)
-
--(NSArray *)map:(id(^)(id object))function;
-
-@end
+static NSArray *MapNSArray(NSArray *array, id(^function)(id object)) {
+    NSUInteger count = array.count;
+    
+    // creates a results array in which to store results, sets the capacity for faster writes
+    NSMutableArray *resultsArray = [[NSMutableArray alloc] initWithCapacity:count];
+    
+    // applies the function to each item and stores the result in the new array
+    for (NSUInteger i=0; i<count; i++) {
+        resultsArray[i] = function(array[i]);
+    }
+    
+    // returns an immutable copy
+    return [resultsArray copy];
+}
 
 @interface GBCloudBoxResourceMeta : NSObject
 
@@ -119,25 +128,6 @@ static NSString *MD5ForData(NSData *data) {
 @property (copy, atomic, readwrite) NSString                    *identifier;
 @property (strong, atomic) NSData                               *cachedData;
 @property (strong, atomic, readwrite) GBCloudBoxResourceMeta    *bundledResourceMeta;
-
-@end
-
-@implementation NSArray (GBCloudBox)
-
--(NSArray *)map:(id(^)(id object))function {
-    NSUInteger count = self.count;
-    
-    // creates a results array in which to store results, sets the capacity for faster writes
-    NSMutableArray *resultsArray = [[NSMutableArray alloc] initWithCapacity:count];
-    
-    // applies the function to each item and stores the result in the new array
-    for (NSUInteger i=0; i<count; i++) {
-        resultsArray[i] = function(self[i]);
-    }
-    
-    // returns an immutable copy
-    return [resultsArray copy];
-}
 
 @end
 
@@ -264,9 +254,9 @@ static NSString *MD5ForData(NSData *data) {
 -(NSArray *)_allLocalVersionsPaths {
     NSString *resourcePath = [self _localPathForResource];
     NSArray *raw = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:resourcePath error:nil];
-    NSArray *mapped = [raw map:^id(id object) {
+    NSArray *mapped = MapNSArray(raw, ^id(id object) {
         return [resourcePath stringByAppendingPathComponent:(NSString *)object];
-    }];
+    });
     
     return mapped;
 }
