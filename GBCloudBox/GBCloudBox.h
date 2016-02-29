@@ -19,6 +19,9 @@
 
 #import <Foundation/Foundation.h>
 
+//#define GBCLOUDBOX_FAILED_MD5_CHECK_THROWS    //throw if MD5 checksum test fails
+//to endable #define GBCLOUDBOX_FAILED_MD5_CHECK_THROWS before #import <GBCloudBox/GBCloudBox.h>
+
 extern NSString * const kGBCloudBoxResourceUpdatedNotification;
 
 typedef void(^UpdateHandler)(NSString *identifier, NSInteger version, NSData *data);
