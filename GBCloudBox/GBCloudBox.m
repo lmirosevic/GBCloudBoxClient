@@ -115,6 +115,7 @@ static NSArray *MapNSArray(NSArray *array, id(^function)(id object)) {
 @property (strong, nonatomic) NSMutableDictionary               *resources;
 @property (strong, nonatomic) NSDictionary                      *bundledResourcesManifest;
 @property (assign, atomic) dispatch_queue_t                     networkQueue;
+@property (assign, nonatomic) BOOL                              isMD5CheckThrows;
 
 +(GBCloudBox *)sharedInstance;
 
@@ -506,14 +507,10 @@ static NSArray *MapNSArray(NSArray *array, id(^function)(id object)) {
                     
                     [[NSNotificationCenter defaultCenter] postNotificationName:kGBCloudBoxResourceUpdatedNotification object:self userInfo:[userInfo copy]];
                 }
-#ifdef GBCLOUDBOX_FAILED_MD5_CHECK_THROWS
-                else {
-                    if(remoteResourceMD5) {
-                        //file integrity check failed
-                        @throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[NSString stringWithFormat:@"GBCloudBox: md5 checksums don't match.\nRemote meta md5:\t%@\nFetched md5:\t\t%@", remoteResourceMD5, fetchedResourceMD5] userInfo:nil];
-                    }
+                else if(_cb.isMD5CheckThrows && remoteResourceMD5) {
+                    //file integrity check failed
+                    @throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[NSString stringWithFormat:@"GBCloudBox: md5 checksums don't match.\nRemote meta md5:\t%@\nFetched md5:\t\t%@", remoteResourceMD5, fetchedResourceMD5] userInfo:nil];
                 }
-#endif
             }];
         }
         else {
@@ -644,6 +641,15 @@ static NSArray *MapNSArray(NSArray *array, id(^function)(id object)) {
         ThrowNonExistentResourceError(resourceIdentifier)
     }
 }
+
++(BOOL)isMD5CheckThrows {
+    return _cb.isMD5CheckThrows;
+}
+
++(void)setMD5CheckThrows:(BOOL)throws {
+    _cb.isMD5CheckThrows = throws;
+}
+
 
 #pragma mark - Private API
 
