@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name         = 'GBCloudBox'
-  s.version      = '2.0.1'
+  s.version      = '2.1.0'
   s.summary      = 'A framework for over-the-air, asynchronous, in-the-background, resource syncing between iOS or Mac OS X apps and a server.'
   s.homepage     = 'https://github.com/lmirosevic/GBCloudBoxClient'
   s.license      = 'Apache License, Version 2.0'
