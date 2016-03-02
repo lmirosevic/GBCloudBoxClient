@@ -20,6 +20,7 @@
 #import "GBCloudBox.h"
 
 #import <stdlib.h>
+#import <CommonCrypto/CommonDigest.h>
 
 #define _cb [GBCloudBox sharedInstance]
 
@@ -34,9 +35,10 @@ static NSString * const kLocalResourcesDirectory = @"GBCloudBoxResources";
 
 static NSString * const kRemoteResourcesMetaPath = @"GBCloudBoxResourcesMeta";
 static NSString * const kRemoteMetaVersionKey = @"v";
+static NSString * const kRemoteMetaMD5 = @"md5";
 static NSString * const kRemoteMetaURLKey = @"url";
 
-typedef void(^ResourceMetaInfoHandler)(NSInteger latestRemoteVersion, NSURL *remoteResourceURL);
+typedef void(^ResourceMetaInfoHandler)(NSInteger latestRemoteVersion, NSURL *remoteResourceURL, NSString *remoteResourceMD5);
 typedef void(^ResourceDataHandler)(NSInteger resourceVersion, NSData *resourceData);
 typedef enum {
     GBCloudBoxLatestVersionNeither = 0,
@@ -45,11 +47,32 @@ typedef enum {
     GBCloudBoxLatestVersionLocal,
 } GBCloudBoxLatestVersion;
 
-@interface NSArray (GBCloudBox)
+static NSString *MD5ForData(NSData *data) {
+    unsigned char result[16];
+    CC_MD5(data.bytes, (CC_LONG)data.length, result);
+    
+    return [NSString stringWithFormat: @"%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
+            result[0], result[1], result[2], result[3],
+            result[4], result[5], result[6], result[7],
+            result[8], result[9], result[10], result[11],
+            result[12], result[13], result[14], result[15]
+            ];
+}
 
--(NSArray *)map:(id(^)(id object))function;
-
-@end
+static NSArray *MapNSArray(NSArray *array, id(^function)(id object)) {
+    NSUInteger count = array.count;
+    
+    // creates a results array in which to store results, sets the capacity for faster writes
+    NSMutableArray *resultsArray = [[NSMutableArray alloc] initWithCapacity:count];
+    
+    // applies the function to each item and stores the result in the new array
+    for (NSUInteger i=0; i<count; i++) {
+        resultsArray[i] = function(array[i]);
+    }
+    
+    // returns an immutable copy
+    return [resultsArray copy];
+}
 
 @interface GBCloudBoxResourceMeta : NSObject
 
@@ -92,6 +115,7 @@ typedef enum {
 @property (strong, nonatomic) NSMutableDictionary               *resources;
 @property (strong, nonatomic) NSDictionary                      *bundledResourcesManifest;
 @property (assign, atomic) dispatch_queue_t                     networkQueue;
+@property (assign, nonatomic) BOOL                              isMD5CheckThrows;
 
 +(GBCloudBox *)sharedInstance;
 
@@ -105,25 +129,6 @@ typedef enum {
 @property (copy, atomic, readwrite) NSString                    *identifier;
 @property (strong, atomic) NSData                               *cachedData;
 @property (strong, atomic, readwrite) GBCloudBoxResourceMeta    *bundledResourceMeta;
-
-@end
-
-@implementation NSArray (GBCloudBox)
-
--(NSArray *)map:(id(^)(id object))function {
-    NSUInteger count = self.count;
-    
-    // creates a results array in which to store results, sets the capacity for faster writes
-    NSMutableArray *resultsArray = [[NSMutableArray alloc] initWithCapacity:count];
-    
-    // applies the function to each item and stores the result in the new array
-    for (NSUInteger i=0; i<count; i++) {
-        resultsArray[i] = function(self[i]);
-    }
-    
-    // returns an immutable copy
-    return [resultsArray copy];
-}
 
 @end
 
@@ -250,9 +255,9 @@ typedef enum {
 -(NSArray *)_allLocalVersionsPaths {
     NSString *resourcePath = [self _localPathForResource];
     NSArray *raw = [[NSFileManager defaultManager] contentsOfDirectoryAtPath:resourcePath error:nil];
-    NSArray *mapped = [raw map:^id(id object) {
+    NSArray *mapped = MapNSArray(raw, ^id(id object) {
         return [resourcePath stringByAppendingPathComponent:(NSString *)object];
-    }];
+    });
     
     return mapped;
 }
@@ -334,8 +339,8 @@ typedef enum {
                 if (handler) {
                     NSInteger version = metaInfoDictionary[kRemoteMetaVersionKey] != [NSNull null] ? [metaInfoDictionary[kRemoteMetaVersionKey] integerValue] : 0;
                     NSURL *resourceURL = metaInfoDictionary[kRemoteMetaURLKey] != [NSNull null] ? [NSURL URLWithString:metaInfoDictionary[kRemoteMetaURLKey]] : nil;
-                    
-                    handler(version, resourceURL);
+                    NSString *resourceMD5 = metaInfoDictionary[kRemoteMetaMD5] != [NSNull null] ? metaInfoDictionary[kRemoteMetaMD5] : nil;
+                    handler(version, resourceURL, resourceMD5);
                 }
             });
         }
@@ -469,34 +474,43 @@ typedef enum {
 //asks the server if there is a newer version, and if there is: it fetches it, stores it in cache and on disk, deletes older local versions, calls handlers and posts notification
 -(void)update {
     //first fetch remote meta
-    [self _fetchRemoteMetaInfo:^(NSInteger latestRemoteVersion, NSURL *remoteResourceURL) {
+    [self _fetchRemoteMetaInfo:^(NSInteger latestRemoteVersion, NSURL *remoteResourceURL, NSString *remoteResourceMD5) {
         //check if remote has newer
         if (latestRemoteVersion > [self latestAvailableVersion]) {
             //fetch remote resource
             [self _fetchResourceFromURL:remoteResourceURL handler:^(NSInteger resourceVersion, NSData *resourceData) {
-                //if the resource fetch had the version HTTP header set, then use that, otherwise just assume the version is what the meta returned
-                NSInteger version = resourceVersion ?: latestRemoteVersion;
-                
-                //store the resource in cache
-                self.cachedData = resourceData;
-                self.cachedVersion = version;
-                
-                //store to disk
-                [self _storeResourceLocally:resourceData withVersion:version];
-                
-                //remove older ones from disk
-                [self _deleteOlderLocalResourceVersions];
-                
-                //call handlers
-                [self _callHandlers];
-                
-                //send notification
-                NSMutableDictionary *userInfo = [NSMutableDictionary new];
-                userInfo[@"identifier"] = self.identifier;
-                if (resourceData) userInfo[@"data"] = resourceData;
-                if (resourceVersion) userInfo[@"version"] = @(resourceVersion);
-                
-                [[NSNotificationCenter defaultCenter] postNotificationName:kGBCloudBoxResourceUpdatedNotification object:self userInfo:[userInfo copy]];
+                //check fetched file integrity
+                NSString *fetchedResourceMD5 = MD5ForData(resourceData);
+                //md5 checksum is optional, we proceed if meta doesn't have an md5
+                if(!remoteResourceMD5 || [fetchedResourceMD5 isEqual:remoteResourceMD5]) {
+                    //if the resource fetch had the version HTTP header set, then use that, otherwise just assume the version is what the meta returned
+                    NSInteger version = resourceVersion ?: latestRemoteVersion;
+                    
+                    //store the resource in cache
+                    self.cachedData = resourceData;
+                    self.cachedVersion = version;
+                    
+                    //store to disk
+                    [self _storeResourceLocally:resourceData withVersion:version];
+                    
+                    //remove older ones from disk
+                    [self _deleteOlderLocalResourceVersions];
+                    
+                    //call handlers
+                    [self _callHandlers];
+                    
+                    //send notification
+                    NSMutableDictionary *userInfo = [NSMutableDictionary new];
+                    userInfo[@"identifier"] = self.identifier;
+                    if (resourceData) userInfo[@"data"] = resourceData;
+                    if (resourceVersion) userInfo[@"version"] = @(resourceVersion);
+                    
+                    [[NSNotificationCenter defaultCenter] postNotificationName:kGBCloudBoxResourceUpdatedNotification object:self userInfo:[userInfo copy]];
+                }
+                else if(_cb.isMD5CheckThrows && remoteResourceMD5) {
+                    //file integrity check failed
+                    @throw [NSException exceptionWithName:NSInternalInconsistencyException reason:[NSString stringWithFormat:@"GBCloudBox: md5 checksums don't match.\nRemote meta md5:\t%@\nFetched md5:\t\t%@", remoteResourceMD5, fetchedResourceMD5] userInfo:nil];
+                }
             }];
         }
         else {
@@ -627,6 +641,15 @@ typedef enum {
         ThrowNonExistentResourceError(resourceIdentifier)
     }
 }
+
++(BOOL)isMD5CheckThrows {
+    return _cb.isMD5CheckThrows;
+}
+
++(void)setMD5CheckThrows:(BOOL)throws {
+    _cb.isMD5CheckThrows = throws;
+}
+
 
 #pragma mark - Private API
 

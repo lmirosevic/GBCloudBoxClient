@@ -42,4 +42,8 @@ typedef id(^Deserializer)(NSData *data);
 //Advanced
 +(void)registerResource:(NSString *)resourceIdentifier withSourceServers:(NSArray *)sourceServers;
 
+//Debug
++(BOOL)isMD5CheckThrows;                //if YES then throw an exception on MD5 checksum test failure
++(void)setMD5CheckThrows:(BOOL)throws;
+
 @end
